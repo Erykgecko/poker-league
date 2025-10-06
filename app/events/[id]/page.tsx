@@ -1,6 +1,6 @@
 // app/events/[id]/page.tsx
-import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
 
 type EventRow = {
   id: string
@@ -28,7 +28,6 @@ async function getEvent(eventId: string) {
     .select('id, title, event_date, venue, buy_in_cents, rake_cents')
     .eq('id', eventId)
     .single()
-
   if (error) throw new Error(`Event query failed: ${error.message}`)
   return data as EventRow
 }
@@ -38,30 +37,39 @@ async function getStandings(eventId: string) {
     .from('v_event_standings')
     .select('*')
     .eq('event_id', eventId)
-    .order('finish_place', { ascending: true, nullsFirst: false })
-
+    .order('finish_place', { ascending: true })
   if (error) throw new Error(`Standings query failed: ${error.message}`)
   return (data ?? []) as StandingRow[]
 }
 
-export default async function EventPage({ params }: { params: { id: string } }) {
+// 👇 Note: params is a Promise in Next.js 15
+export default async function EventPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
+
   const [ev, standings] = await Promise.all([
-    getEvent(params.id),
-    getStandings(params.id),
+    getEvent(id),
+    getStandings(id),
   ])
 
   const date = new Date(ev.event_date).toLocaleDateString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric'
+    year: 'numeric', month: 'short', day: 'numeric',
   })
-
   const entrants = standings.length
   const prizePool = standings.reduce((sum, r) => sum + (r.cash_cents || 0), 0)
-  const prizePoolGBP = (prizePool / 100).toLocaleString(undefined, { style: 'currency', currency: 'GBP' })
+  const prizePoolGBP = (prizePool / 100).toLocaleString(undefined, {
+    style: 'currency', currency: 'GBP',
+  })
 
   return (
     <main className="mx-auto max-w-3xl p-6">
       <div className="mb-4 text-sm">
-        <Link href="/events" className="text-blue-600 hover:underline">← Back to events</Link>
+        <Link href="/events" className="text-blue-600 hover:underline">
+          ← Back to events
+        </Link>
       </div>
 
       <h1 className="text-3xl font-bold">{ev.title}</h1>
@@ -87,7 +95,10 @@ export default async function EventPage({ params }: { params: { id: string } }) 
               {standings.map((row) => {
                 const name = row.display_name
                 const handle = row.handle ? `@${row.handle}` : ''
-                const cash = (row.cash_cents / 100).toLocaleString(undefined, { style: 'currency', currency: 'GBP' })
+                const cash = (row.cash_cents / 100).toLocaleString(undefined, {
+                  style: 'currency',
+                  currency: 'GBP',
+                })
                 return (
                   <tr key={row.entry_id} className="border-t">
                     <td className="px-4 py-3">{row.finish_place ?? '—'}</td>

@@ -309,10 +309,10 @@ export default async function EntriesPage({
 
       {/* ROSTER TOGGLE + LIVE SEARCH (client) */}
       <ClientRoster
-        eventId={eventId}
-        players={allPlayers}
-        initialSelectedIds={entries.map(e => e.player_id)}
-      />
+            eventId={eventId}
+            players={allPlayers}
+            selectedIds={entries.map(e => e.player_id)}
+        />
 
       {/* CURRENT ENTRIES TABLE */}
       <section className="mt-8">

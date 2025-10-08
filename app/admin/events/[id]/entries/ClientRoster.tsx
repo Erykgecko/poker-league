@@ -1,24 +1,34 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
-import { syncSelection } from './actions'
+import { useEffect, useMemo, useState, useTransition } from 'react'
+import { addEntry, removeEntry } from './actions'
 
 export type Player = { id: string; display_name: string; handle: string | null }
 
 export function ClientRoster({
   eventId,
   players,
-  initialSelectedIds,
+  selectedIds, // <-- live selected ids from server (entries)
 }: {
   eventId: string
   players: Player[]
-  initialSelectedIds: string[]
+  selectedIds: string[]
 }) {
+  // Local optimistic selection (copies server selection)
   const [selected, setSelected] = useState<Set<string>>(
-    () => new Set(initialSelectedIds)
+    () => new Set(selectedIds)
   )
-  const [q, setQ] = useState('')
   const [isPending, startTransition] = useTransition()
+  const [q, setQ] = useState('')
+
+  // Keep local state in sync when server selection changes
+  const selectedKey = useMemo(
+    () => [...selectedIds].sort().join(','),
+    [selectedIds]
+  )
+  useEffect(() => {
+    setSelected(new Set(selectedIds))
+  }, [selectedKey])
 
   const filtered = useMemo(() => {
     if (!q.trim()) return players
@@ -29,11 +39,29 @@ export function ClientRoster({
     )
   }, [players, q])
 
-  const toggle = (id: string) => {
+  const onToggle = (id: string, nextChecked: boolean) => {
+    // Optimistic update
     setSelected(prev => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      nextChecked ? next.add(id) : next.delete(id)
       return next
+    })
+
+    startTransition(async () => {
+      try {
+        if (nextChecked) {
+          await addEntry({ eventId, playerId: id })
+        } else {
+          await removeEntry({ eventId, playerId: id })
+        }
+      } catch {
+        // Revert on error
+        setSelected(prev => {
+          const next = new Set(prev)
+          nextChecked ? next.delete(id) : next.add(id)
+          return next
+        })
+      }
     })
   }
 
@@ -63,63 +91,31 @@ export function ClientRoster({
         </div>
       </div>
 
-      <form
-        action={async (formData: FormData) => {
-          formData.set('event_id', eventId)
-          ;(formData.getAll('players') as string[]).forEach(() => formData.delete('players'))
-          selected.forEach(id => formData.append('players', id))
-          startTransition(() => syncSelection(formData))
-        }}
-        className="grid gap-3"
-      >
-        <input type="hidden" name="event_id" value={eventId} />
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {filtered.map((p) => {
+          const checked = selected.has(p.id)
+          const handle = p.handle ? `@${p.handle}` : ''
+          return (
+            <label key={p.id} className="flex items-center gap-3 rounded-lg border p-2">
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) => onToggle(p.id, e.target.checked)}
+              />
+              <div>
+                <div className="font-medium">{p.display_name}</div>
+                {handle && <div className="text-gray-500">{handle}</div>}
+              </div>
+            </label>
+          )
+        })}
+      </div>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map(p => {
-            const checked = selected.has(p.id)
-            const handle = p.handle ? `@${p.handle}` : ''
-            return (
-              <label key={p.id} className="flex items-center gap-3 rounded-lg border p-2">
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggle(p.id)}
-                />
-                <div>
-                  <div className="font-medium">{p.display_name}</div>
-                  {handle && <div className="text-gray-500">{handle}</div>}
-                </div>
-              </label>
-            )
-          })}
-        </div>
-
-        <div className="pt-2 flex items-center gap-3">
-          <button
-            disabled={isPending}
-            className="rounded-lg bg-black px-4 py-2 text-white disabled:opacity-60"
-          >
-            {isPending ? 'Saving…' : 'Save selection'}
-          </button>
-          <button
-            type="button"
-            className="rounded border px-3 py-2"
-            onClick={() => setSelected(new Set(players.map(p => p.id)))}
-          >
-            Select all (visible)
-          </button>
-          <button
-            type="button"
-            className="rounded border px-3 py-2"
-            onClick={() => setSelected(new Set())}
-          >
-            Clear all
-          </button>
-        </div>
-      </form>
+      {isPending && (
+        <div className="pt-2 text-sm text-gray-500">Saving…</div>
+      )}
     </section>
   )
 }
 
-// Provide a default export too (covers any import style)
 export default ClientRoster

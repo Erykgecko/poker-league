@@ -58,18 +58,20 @@ async function actionAddExisting(form: FormData) {
   const supabase = await createSupabaseActionClient()
   const eventId = String(form.get('event_id') ?? '')
   const handleOrName = String(form.get('handle_or_name') ?? '').trim()
-
   if (!eventId || !handleOrName) throw new Error('Missing data.')
 
-  // Find by handle first; fallback to exact display_name
-  let { data: players, error } = await supabase
+  // 1) Try handle
+  const { data: byHandle, error } = await supabase
     .from('players')
     .select('id')
     .ilike('handle', handleOrName)
     .limit(1)
   if (error) throw new Error(error.message)
 
-  if (!players || players.length === 0) {
+  let players = byHandle ?? []
+
+  // 2) Fallback: exact display_name
+  if (players.length === 0) {
     const { data: byName, error: nErr } = await supabase
       .from('players')
       .select('id')
@@ -78,21 +80,17 @@ async function actionAddExisting(form: FormData) {
     if (nErr) throw new Error(nErr.message)
     players = byName ?? []
   }
-  if (!players || players.length === 0) throw new Error('Player not found.')
+
+  if (players.length === 0) throw new Error('Player not found.')
 
   const playerId = players[0].id
-
   const { error: insErr } = await supabase.from('entries').insert({
-    event_id: eventId,
-    player_id: playerId,
-    buyins: 1,
-    rebuys: 0,
-    addon: false,
+    event_id: eventId, player_id: playerId, buyins: 1, rebuys: 0, addon: false,
   })
   if (insErr && !insErr.message.includes('duplicate key')) throw new Error(insErr.message)
 
   revalidatePath(`/admin/events/${eventId}/entries`)
-  revalidatePath(`/events/${eventId}`) // public page
+  revalidatePath(`/events/${eventId}`)
 }
 
 async function actionCreateAndAdd(form: FormData) {

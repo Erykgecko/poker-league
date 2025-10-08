@@ -20,6 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/" className="font-semibold">Poker League</Link>
             <Link href="/events" className="hover:underline">Events</Link>
             <Link href="/standings" className="hover:underline">Standings</Link>
+            <Link href="/admin" className="hover:underline">Admin</Link>
           </nav>
         </header>
         {children}

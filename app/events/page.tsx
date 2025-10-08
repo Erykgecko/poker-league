@@ -1,10 +1,11 @@
 // app/events/page.tsx
 import { supabase } from '@/lib/supabase'
+import Link from 'next/link'
 
 type EventRow = {
   id: string
   title: string
-  event_date: string   // ISO date string
+  event_date: string
   venue: string | null
   buy_in_cents: number
   rake_cents: number | null
@@ -12,12 +13,11 @@ type EventRow = {
 
 export const revalidate = 60
 
-async function getEvents() {
+async function getEvents(): Promise<EventRow[]> {
   const { data, error } = await supabase
     .from('events')
     .select('id, title, event_date, venue, buy_in_cents, rake_cents')
     .order('event_date', { ascending: false })
-
   if (error) throw new Error(`Events query failed: ${error.message}`)
   return (data ?? []) as EventRow[]
 }
@@ -42,7 +42,7 @@ export default async function EventsPage() {
             })
             return (
               <li key={ev.id} className="rounded-2xl border p-4">
-                <a href={`/events/${ev.id}`} className="block hover:opacity-90">
+                <Link href={`/events/${ev.id}`} className="block hover:opacity-90">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-lg font-semibold">{ev.title}</div>
@@ -52,7 +52,7 @@ export default async function EventsPage() {
                     </div>
                     <div className="text-gray-700">{buyIn} buy-in</div>
                   </div>
-                </a>
+                </Link>
               </li>
             )
           })}
